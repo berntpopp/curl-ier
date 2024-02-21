@@ -36,17 +36,17 @@ node curl-ier.js --url <url> --header <header1> --header <header2> ...
 ```
 
 ## Command-Line Arguments
---url (-u): URL to send requests to (required).
---header (-h): Headers for the request (optional).
---dataRawString (-drs): Data raw string with variable placeholders (optional).
---singleDataRaw (-s): Single data-raw value for one-time request (optional).
---dataRawFile (-d): File containing data-raw values (optional).
---outputFolder (-o): Folder to save responses (optional).
---baseName (-b): Base name for output files (optional).
---timeIntervalMin (-tmin): Minimum time interval (in seconds) between requests (optional).
---timeIntervalMax (-tmax): Maximum time interval (in seconds) between requests (optional).
---recordLimit (-r): Number of records to process from the input file (optional).
---logFile (-l): Path to a log file to resume progress (optional).
+- --url (-u): URL to send requests to (required).
+- --header (-h): Headers for the request (optional).
+- --dataRawString (-drs): Data raw string with variable placeholders (optional).
+- --singleDataRaw (-s): Single data-raw value for one-time request (optional).
+- --dataRawFile (-d): File containing data-raw values (optional).
+- --outputFolder (-o): Folder to save responses (optional).
+- --baseName (-b): Base name for output files (optional).
+- --timeIntervalMin (-tmin): Minimum time interval (in seconds) between requests (optional).
+- --timeIntervalMax (-tmax): Maximum time interval (in seconds) between requests (optional).
+- --recordLimit (-r): Number of records to process from the input file (optional).
+- --logFile (-l): Path to a log file to resume progress (optional).
 
 ## License
 This project is licensed under the MIT License - see the LICENSE file for details.
