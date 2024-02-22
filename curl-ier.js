@@ -185,12 +185,19 @@ async function main() {
         describe: 'Path to a log file to resume progress',
         type: 'string'
     })
+    .option('extension', {
+        alias: 'e',
+        describe: 'File extension for output files',
+        default: 'html', // Default to 'html' if not specified
+        type: 'string',
+        choices: ['html', 'json', 'xml', 'txt', 'csv', 'tsv', 'yml']
+    })
     .help()
     .version(packageJson.version)
     .argv;
 
     // Extract command line arguments
-    const { url, header, dataRawFile, dataRawString, outputFolder, baseName, timeIntervalMin, timeIntervalMax, recordLimit, logFile, singleDataRaw } = argv;
+    const { url, header, dataRawFile, dataRawString, outputFolder, baseName, timeIntervalMin, timeIntervalMax, recordLimit, logFile, singleDataRaw, extension } = argv;
 
     // Parse and validate headers
     const headers = header.reduce((acc, h) => {
@@ -239,7 +246,7 @@ async function main() {
 
         // Save the response
         if (response) {
-            await saveResponse(outputFolder, baseName, dataRawLines[i], 'html', response); // Use dataRawLines[i] for the filename
+            await saveResponse(outputFolder, baseName, dataRawLines[i], extension, response);
             log[requestData] = true;
     
             // Only write to the log file if it's specified

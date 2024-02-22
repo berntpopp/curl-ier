@@ -47,6 +47,7 @@ node curl-ier.js --url <url> --header <header1> --header <header2> ...
 - --timeIntervalMax (-tmax): Maximum time interval (in seconds) between requests (optional).
 - --recordLimit (-r): Number of records to process from the input file (optional).
 - --logFile (-l): Path to a log file to resume progress (optional).
+- --extension (-e): File extension for output files (optional, defaults to 'html').
 
 ## License
 This project is licensed under the MIT License - see the LICENSE file for details.
