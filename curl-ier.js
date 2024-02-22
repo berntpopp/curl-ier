@@ -11,6 +11,7 @@ const yargs = require('yargs');
 const axios = require('axios');
 const fs = require('fs-extra');
 const path = require('path');
+const { format } = require('date-fns');
 const packageJson = require('./package.json');
 
 
@@ -110,10 +111,19 @@ async function processFile(dataRawFile, recordLimit) {
  * @param {string} extension - The file extension to use for the saved file.
  * @param {string} response - The response data to be saved in the file.
  * @returns {Promise<void>} A promise that resolves when the file has been saved.
- * @description Constructs a filename from the provided parameters and saves the response data to this file.
+ * @description Constructs a filename from the provided parameters, including a timestamp in the format 'yyyy-MM-dd',
+ *              and saves the response data to this file.
  */
 async function saveResponse(outputFolder, baseName, variable, extension, response) {
-    const filename = path.join(outputFolder, `${baseName}.${variable}.${extension}`);
+    let timestamp;
+    try {
+        timestamp = format(new Date(), 'yyyy-MM-dd');
+    } catch (error) {
+        console.error('Error formatting the date:', error);
+        timestamp = 'unknown-date'; // Fallback timestamp
+    }
+
+    const filename = path.join(outputFolder, `${baseName}.${variable}.${timestamp}.${extension}`);
     await fs.outputFile(filename, response);
 }
 

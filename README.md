@@ -9,7 +9,7 @@
 - Send HTTP requests with custom headers and data.
 - Support for both GET and POST requests.
 - Read data from a file or a single data input.
-- Save responses to a specified directory with customizable filenames.
+- Save responses to a specified directory with customizable filenames, including a timestamp for easy tracking.
 - Retry mechanism for handling request failures.
 - Customizable delay between requests.
 - Resume capability from the last processed record.
@@ -29,7 +29,7 @@ npm install
 ```
 
 ## Usage
-Run the script with Node.js, providing the necessary command-line arguments:
+Run the script with Node.js, providing the necessary command-line arguments. Note that output filenames will include the current date in the format 'YYYY-MM-DD' for easy tracking.
 
 ```bash
 node curl-ier.js --url <url> --header <header1> --header <header2> ...
