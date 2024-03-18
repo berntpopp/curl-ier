@@ -9,10 +9,12 @@
 // --------------------------------------------------------------- //
 const yargs = require('yargs');
 const axios = require('axios');
+const qs = require('qs');
 const fs = require('fs-extra');
 const path = require('path');
 const { format } = require('date-fns');
 const packageJson = require('./package.json');
+const { log } = require('console');
 
 
 // --------------------------------------------------------------- //
@@ -39,19 +41,25 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Sends an HTTP request to the specified URL with given headers and data.
+ * Optionally includes a session cookie. Retries the request upon failure.
  * @param {string} url - The URL to send the request to.
  * @param {object} headers - The headers for the request.
- * @param {string} dataRaw - The raw data to be sent in the request.
- * @param {number} retryCount - The current retry count.
+ * @param {string} dataRaw - The raw data to be sent in the request (for POST requests).
+ * @param {string} sessionCookie - The session cookie to be included in the request.
+ * @param {number} retryCount - The current retry count, defaulting to 0.
  * @returns {Promise<object|null>} The response data or null in case of an error.
  */
-async function sendRequest(url, headers, dataRaw, retryCount = 0) {
+async function sendRequest(url, headers, dataRaw, sessionCookie, retryCount = 0) {
     try {
         let response;
+        const requestOptions = {
+            headers: { ...headers, 'Cookie': sessionCookie }
+        };
+
         if (dataRaw) {
-            response = await axios.post(url, dataRaw, { headers });
+            response = await axios.post(url, dataRaw, requestOptions);
         } else {
-            response = await axios.get(url, { headers });
+            response = await axios.get(url, requestOptions);
         }
         return response.data;
     } catch (error) {
@@ -103,6 +111,21 @@ async function processFile(dataRawFile, recordLimit) {
 }
 
 /**
+ * Sanitizes and truncates the variable to ensure it's safe for use in filenames.
+ * 
+ * @param {string} variable - The variable part of the file name.
+ * @param {number} maxLength - Maximum length of the sanitized string.
+ * @returns {string} Sanitized and truncated string.
+ */
+function sanitizeAndTruncate(variable, maxLength = 200) {
+    // Remove special characters
+    let sanitized = variable.replace(/[^a-zA-Z0-9-_\.]/g, '');
+
+    // Truncate to the maximum length
+    return sanitized.length > maxLength ? sanitized.substring(0, maxLength) : sanitized;
+}
+
+/**
  * Saves the given response data to a file in the specified output folder.
  * 
  * @param {string} outputFolder - The folder where the file will be saved.
@@ -123,8 +146,107 @@ async function saveResponse(outputFolder, baseName, variable, extension, respons
         timestamp = 'unknown-date'; // Fallback timestamp
     }
 
-    const filename = path.join(outputFolder, `${baseName}.${variable}.${timestamp}.${extension}`);
+    // Sanitize and truncate the variable
+    const safeVariable = sanitizeAndTruncate(variable);
+
+    const filename = path.join(outputFolder, `${baseName}.${safeVariable}.${timestamp}.${extension}`);
     await fs.outputFile(filename, response);
+}
+
+/**
+ * Logs into a website using a POST request, retrieves the session cookie,
+ * and optionally visits additional URLs to gather more cookies.
+ * @param {string} loginUrl - The URL for the login request.
+ * @param {string} username - The username for login.
+ * @param {string} password - The password for login.
+ * @param {string[]} cookieUrls - Additional URLs to visit after login for extra cookies.
+ * @param {object} cookieLoginHeaders - Additional headers for the login request.
+ * @returns {Promise<Array<string>>} - A promise that resolves to an array of cookies.
+ */
+async function loginWithCookie(loginUrl, username, password, cookieUrls, cookieLoginHeaders) {
+    try {
+        // Perform the login and get the initial set of cookies
+        let data = qs.stringify({
+            'user': username,
+            'pass': password,
+            'submit': 'Login',
+            'logintype': 'login',
+            'pid': '20,51,236,242,247,249,459,1632,563,1626@fc9c166b9b34d0c69ae148351597ea42d07a4f9a' 
+        });
+
+        let config = {
+            method: 'post',
+            maxBodyLength: Infinity,
+            maxRedirects: 0,
+            url: loginUrl,
+            headers: { 
+                'Content-Type': 'application/x-www-form-urlencoded',
+                ...cookieLoginHeaders
+            },
+            data: data,
+            validateStatus: function (status) {
+                return status >= 200 && status < 400; // Resolve for status codes less than 400
+            }
+        };
+
+        let response = await axios.request(config);
+        let cookies = response.headers['set-cookie'] || [];
+
+        // Visit additional URLs to get more cookies
+        for (let url of cookieUrls) {
+            let additionalResponse = await axios.get(url, {
+                headers: {
+                    'Cookie': cookies.join('; '),
+                    ...cookieLoginHeaders
+                },
+                maxRedirects: 0,
+                validateStatus: function (status) {
+                    return status >= 200 && status < 400;
+                }
+            });
+
+            let newCookies = additionalResponse.headers['set-cookie'] || [];
+            cookies = cookies.concat(newCookies);
+        }
+
+        if (cookies.length === 0) {
+            console.error("Login failed: No session cookie received.");
+            return null;
+        }
+
+        return cookies;
+    } catch (error) {
+        console.error(`Error during login process: ${error}`);
+        return null;
+    }
+}
+
+/**
+ * Visits a specified URL to collect cookies, using existing cookies and additional headers.
+ * 
+ * @param {string} url - The URL to visit for collecting cookies.
+ * @param {Array<string>} existingCookies - Cookies to be sent with the request.
+ * @param {object} cookieLoginHeaders - Headers to be included in the request.
+ * @returns {Promise<Array<string>>} A promise that resolves to an array of cookies from the response.
+ */
+async function visitForCookies(url, existingCookies, cookieLoginHeaders) {
+    try {
+        const response = await axios.get(url, {
+            headers: {
+                'Cookie': existingCookies.join('; '),
+                ...cookieLoginHeaders
+            },
+            maxRedirects: 0,
+            validateStatus: function (status) {
+                return status >= 200 && status < 400; // Accept any status code less than 400
+            }
+        });
+
+        return response.headers['set-cookie'] || [];
+    } catch (error) {
+        console.error(`Error visiting URL for cookies: ${url}, ${error}`);
+        return [];
+    }
 }
 
 
@@ -143,6 +265,35 @@ async function main() {
     .option('header', {
         alias: 'h',
         describe: 'Headers for the request',
+        type: 'array',
+        default: []
+    })
+    .option('username', {
+        alias: 'un',
+        describe: 'Username for login',
+        type: 'string'
+    })
+    .option('password', {
+        alias: 'p',
+        describe: 'Password for login',
+        type: 'string'
+    })
+    .option('cookieLoginHeaders', {
+        alias: 'ch',
+        describe: 'Additional headers for the cookie login request in JSON format',
+        type: 'string',
+        coerce: arg => {
+            try {
+                return JSON.parse(arg);
+            } catch (e) {
+                console.error('Error parsing cookie login headers:', e);
+                return {};
+            }
+        }
+    })
+    .option('cookieUrls', {
+        alias: 'cu',
+        describe: 'Additional URLs to visit for collecting cookies',
         type: 'array',
         default: []
     })
@@ -207,7 +358,17 @@ async function main() {
     .argv;
 
     // Extract command line arguments
-    const { url, header, dataRawFile, dataRawString, outputFolder, baseName, timeIntervalMin, timeIntervalMax, recordLimit, logFile, singleDataRaw, extension } = argv;
+    const { url, header, dataRawFile, dataRawString, outputFolder, baseName, timeIntervalMin, timeIntervalMax, recordLimit, logFile, singleDataRaw, extension, loginUrl, username, password, cookieLoginHeaders, cookieUrls} = argv;
+
+    let cookies = null;
+    if (loginUrl && username && password) {
+        // Login and gather cookies
+        cookies = await loginWithCookie(loginUrl, username, password, cookieUrls, cookieLoginHeaders);
+        if (!cookies) {
+            console.error("Failed to gather necessary cookies, exiting...");
+            return;
+        }
+    }
 
     // Parse and validate headers
     const headers = header.reduce((acc, h) => {
@@ -252,7 +413,7 @@ async function main() {
         if (log[requestData]) continue;
     
         // Send the request
-        const response = await sendRequest(url, headers, requestData);
+        const response = await sendRequest(url, headers, requestData, cookies);
 
         // Save the response
         if (response) {
